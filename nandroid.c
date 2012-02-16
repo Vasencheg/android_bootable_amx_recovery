@@ -307,6 +307,17 @@ int nandroid_backup(const char* backup_path)
             return ret;
     }
 
+    vol = volume_for_path("/flex");
+//	if (vol == NULL || 0 != stat(vol->device, &s)) {
+	if (vol == NULL) {
+		ui_print("No /flex found. Skipping backup of /flex.\n");
+	} else {
+		if (0 != ensure_path_mounted("/flex"))
+			ui_print("Could not mount /flex. /flex backup may not be supported on this device. Skipping backup of /flex.\n");
+		else if (0 != (ret = nandroid_backup_partition(backup_path, "/flex")))
+			return ret;
+	}
+
     ui_print("Generating md5 sum...\n");
     sprintf(tmp, "nandroid-md5.sh %s", backup_path);
     if (0 != (ret = __system(tmp))) {
@@ -485,8 +496,10 @@ int nandroid_restore_partition_extended(const char* backup_path, const char* mou
 int nandroid_restore_partition(const char* backup_path, const char* root) {
     Volume *vol = volume_for_path(root);
     // make sure the volume exists...
-    if (vol == NULL || vol->fs_type == NULL)
-        return 0;
+    if (vol == NULL || vol->fs_type == NULL) {
+    	ui_print("No %s found. Skipping restore of $s.\n", root);
+    	return 0;
+    }
 
     // see if we need a raw restore (mtd)
     char tmp[PATH_MAX];
@@ -511,7 +524,7 @@ int nandroid_restore_partition(const char* backup_path, const char* root) {
     return nandroid_restore_partition_extended(backup_path, root, 1);
 }
 
-int nandroid_restore(const char* backup_path, int restore_boot, int restore_system, int restore_data, int restore_cache, int restore_sdext, int restore_wimax)
+int nandroid_restore(const char* backup_path, int restore_boot, int restore_system, int restore_data, int restore_cache, int restore_sdext, int restore_wimax, int restore_flex)
 {
     ui_set_background(BACKGROUND_ICON_INSTALLING);
     ui_show_indeterminate_progress();
@@ -581,6 +594,9 @@ int nandroid_restore(const char* backup_path, int restore_boot, int restore_syst
     if (restore_sdext && 0 != (ret = nandroid_restore_partition(backup_path, "/sd-ext")))
         return ret;
 
+	if (restore_flex && 0 != (ret = nandroid_restore_partition(backup_path, "/flex")))
+		return ret;
+
     sync();
     ui_set_background(BACKGROUND_ICON_NONE);
     ui_reset_progress();
@@ -614,7 +630,7 @@ int nandroid_main(int argc, char** argv)
     {
         if (argc != 3)
             return nandroid_usage();
-        return nandroid_restore(argv[2], 1, 1, 1, 1, 1, 0);
+        return nandroid_restore(argv[2], 1, 1, 1, 1, 1, 0, 1);
     }
     
     return nandroid_usage();

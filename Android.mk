@@ -34,7 +34,7 @@ ifdef I_AM_KOUSH
 RECOVERY_NAME := ClockworkMod Recovery
 LOCAL_CFLAGS += -DI_AM_KOUSH
 else
-RECOVERY_NAME := CWM-based Recovery
+RECOVERY_NAME := AdvantageMX CWM-based Recovery
 endif
 
 RECOVERY_VERSION := $(RECOVERY_NAME) v5.0.2.8
@@ -71,7 +71,7 @@ LOCAL_STATIC_LIBRARIES += libminzip libunz libmincrypt
 
 LOCAL_STATIC_LIBRARIES += libedify libbusybox libclearsilverregex libmkyaffs2image libunyaffs liberase_image libdump_image libflash_image
 
-LOCAL_STATIC_LIBRARIES += libcrecovery libflashutils libmtdutils libmmcutils libbmlutils 
+LOCAL_STATIC_LIBRARIES += libcrecovery libflashutils libmtdutils libmmcutils libbmlutils
 
 ifeq ($(BOARD_USES_BML_OVER_MTD),true)
 LOCAL_STATIC_LIBRARIES += libbml_over_mtd
@@ -163,4 +163,3 @@ commands_recovery_local_path :=
 
 endif   # TARGET_ARCH == arm
 endif    # !TARGET_SIMULATOR
-
