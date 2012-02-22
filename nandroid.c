@@ -224,112 +224,125 @@ int nandroid_backup_partition(const char* backup_path, const char* root) {
     return nandroid_backup_partition_extended(backup_path, root, 1);
 }
 
-int nandroid_backup(const char* backup_path)
-{
-    ui_set_background(BACKGROUND_ICON_INSTALLING);
-    
-    if (ensure_path_mounted(backup_path) != 0) {
-        return print_and_error("Can't mount backup path.\n");
-    }
-    
-    Volume* volume = volume_for_path(backup_path);
-    if (NULL == volume)
-        return print_and_error("Unable to find volume for backup path.\n");
-    int ret;
-    struct statfs s;
-    if (0 != (ret = statfs(volume->mount_point, &s)))
-        return print_and_error("Unable to stat backup path.\n");
-    uint64_t bavail = s.f_bavail;
-    uint64_t bsize = s.f_bsize;
-    uint64_t sdcard_free = bavail * bsize;
-    uint64_t sdcard_free_mb = sdcard_free / (uint64_t)(1024 * 1024);
-    ui_print("SD Card space free: %lluMB\n", sdcard_free_mb);
-    if (sdcard_free_mb < 150)
-        ui_print("There may not be enough free space to complete backup... continuing...\n");
-    
-    char tmp[PATH_MAX];
-    sprintf(tmp, "mkdir -p %s", backup_path);
-    __system(tmp);
+int nandroid_backup_extended (const char* backup_path, int backup_boot,
+		int backup_system, int backup_data, int backup_cache,
+		int backup_sdext, int backup_wimax, int backup_flex,
+		int backup_recovery, int backup_datadata, int backup_asecure) {
 
-    if (0 != (ret = nandroid_backup_partition(backup_path, "/boot")))
-        return ret;
+	ui_set_background(BACKGROUND_ICON_INSTALLING);
 
-    if (0 != (ret = nandroid_backup_partition(backup_path, "/recovery")))
-        return ret;
-
-    Volume *vol = volume_for_path("/wimax");
-    if (vol != NULL && 0 == stat(vol->device, &s))
-    {
-        char serialno[PROPERTY_VALUE_MAX];
-        ui_print("Backing up WiMAX...\n");
-        serialno[0] = 0;
-        property_get("ro.serialno", serialno, "");
-        sprintf(tmp, "%s/wimax.%s.img", backup_path, serialno);
-        ret = backup_raw_partition(vol->fs_type, vol->device, tmp);
-        if (0 != ret)
-            return print_and_error("Error while dumping WiMAX image!\n");
-    }
-
-    if (0 != (ret = nandroid_backup_partition(backup_path, "/system")))
-        return ret;
-
-    if (0 != (ret = nandroid_backup_partition(backup_path, "/data")))
-        return ret;
-
-    if (has_datadata()) {
-        if (0 != (ret = nandroid_backup_partition(backup_path, "/datadata")))
-            return ret;
-    }
-
-    if (0 != stat("/sdcard/.android_secure", &s))
-    {
-        ui_print("No /sdcard/.android_secure found. Skipping backup of applications on external storage.\n");
-    }
-    else
-    {
-        if (0 != (ret = nandroid_backup_partition_extended(backup_path, "/sdcard/.android_secure", 0)))
-            return ret;
-    }
-
-    if (0 != (ret = nandroid_backup_partition_extended(backup_path, "/cache", 0)))
-        return ret;
-
-    vol = volume_for_path("/sd-ext");
-    if (vol == NULL || 0 != stat(vol->device, &s))
-    {
-        ui_print("No sd-ext found. Skipping backup of sd-ext.\n");
-    }
-    else
-    {
-        if (0 != ensure_path_mounted("/sd-ext"))
-            ui_print("Could not mount sd-ext. sd-ext backup may not be supported on this device. Skipping backup of sd-ext.\n");
-        else if (0 != (ret = nandroid_backup_partition(backup_path, "/sd-ext")))
-            return ret;
-    }
-
-    vol = volume_for_path("/flex");
-//	if (vol == NULL || 0 != stat(vol->device, &s)) {
-	if (vol == NULL) {
-		ui_print("No /flex found. Skipping backup of /flex.\n");
-	} else {
-		if (0 != ensure_path_mounted("/flex"))
-			ui_print("Could not mount /flex. /flex backup may not be supported on this device. Skipping backup of /flex.\n");
-		else if (0 != (ret = nandroid_backup_partition(backup_path, "/flex")))
-			return ret;
+	if (ensure_path_mounted(backup_path) != 0) {
+		return print_and_error("Can't mount backup path.\n");
 	}
 
-    ui_print("Generating md5 sum...\n");
-    sprintf(tmp, "nandroid-md5.sh %s", backup_path);
-    if (0 != (ret = __system(tmp))) {
-        ui_print("Error while generating md5 sum!\n");
-        return ret;
-    }
-    
-    sync();
-    ui_set_background(BACKGROUND_ICON_NONE);
-    ui_reset_progress();
-    ui_print("\nBackup complete!\n");
-    return 0;
+	Volume* volume = volume_for_path(backup_path);
+	if (NULL == volume)
+		return print_and_error("Unable to find volume for backup path.\n");
+	int ret;
+	struct statfs s;
+	if (0 != (ret = statfs(volume->mount_point, &s)))
+		return print_and_error("Unable to stat backup path.\n");
+	uint64_t bavail = s.f_bavail;
+	uint64_t bsize = s.f_bsize;
+	uint64_t sdcard_free = bavail * bsize;
+	uint64_t sdcard_free_mb = sdcard_free / (uint64_t)(1024 * 1024);
+	ui_print("SD Card space free: %lluMB\n", sdcard_free_mb);
+	if (sdcard_free_mb < 150)
+		ui_print("There may not be enough free space to complete backup... continuing...\n");
+
+	char tmp[PATH_MAX];
+	sprintf(tmp, "mkdir -p %s", backup_path);
+	__system(tmp);
+
+	if (backup_boot && 0 != (ret = nandroid_backup_partition(backup_path, "/boot")))
+		return ret;
+
+	if (backup_recovery && 0 != (ret = nandroid_backup_partition(backup_path, "/recovery")))
+		return ret;
+
+	if (backup_wimax) {
+		Volume *vol = volume_for_path("/wimax");
+		if (vol != NULL && 0 == stat(vol->device, &s)) {
+			char serialno[PROPERTY_VALUE_MAX];
+			ui_print("Backing up WiMAX...\n");
+			serialno[0] = 0;
+			property_get("ro.serialno", serialno, "");
+			sprintf(tmp, "%s/wimax.%s.img", backup_path, serialno);
+			ret = backup_raw_partition(vol->fs_type, vol->device, tmp);
+			if (0 != ret)
+				return print_and_error("Error while dumping WiMAX image!\n");
+		} else {
+			ui_print("No /wimax found. Skipping backup of /wimax.\n");
+		}
+	}
+
+	if (backup_system && 0 != (ret = nandroid_backup_partition(backup_path, "/system")))
+		return ret;
+
+	if (backup_data && 0 != (ret = nandroid_backup_partition(backup_path, "/data")))
+		return ret;
+
+	if (backup_datadata) {
+		if (has_datadata()) {
+			if (0 != (ret = nandroid_backup_partition(backup_path, "/datadata")))
+			return ret;
+		} else {
+			ui_print("No /datadata found. Skipping backup of /datadata.\n");
+		}
+	}
+
+	if (backup_asecure) {
+		if (0 != stat("/sdcard/.android_secure", &s)) {
+			ui_print("No /sdcard/.android_secure found. Skipping backup of applications on external storage.\n");
+		} else {
+			if (0 != (ret = nandroid_backup_partition_extended(backup_path, "/sdcard/.android_secure", 0)))
+				return ret;
+		}
+	}
+
+	if (backup_cache && 0 != (ret = nandroid_backup_partition_extended(backup_path, "/cache", 0)))
+		return ret;
+
+	if (backup_sdext) {
+		Volume *vol = volume_for_path("/sd-ext");
+		if (vol == NULL || 0 != stat(vol->device, &s)) {
+			ui_print("No /sd-ext found. Skipping backup of /sd-ext.\n");
+		} else {
+			if (0 != ensure_path_mounted("/sd-ext"))
+				ui_print("Could not mount sd-ext. sd-ext backup may not be supported on this device. Skipping backup of sd-ext.\n");
+			else if (0 != (ret = nandroid_backup_partition(backup_path, "/sd-ext")))
+				return ret;
+		}
+	}
+
+	if (backup_flex) {
+		Volume *vol = volume_for_path("/flex");
+		if (vol == NULL) {
+			ui_print("No /flex found. Skipping backup of /flex.\n");
+		} else {
+			if (0 != ensure_path_mounted("/flex"))
+				ui_print("Could not mount /flex. /flex backup may not be supported on this device. Skipping backup of /flex.\n");
+			else if (0 != (ret = nandroid_backup_partition(backup_path, "/flex")))
+				return ret;
+		}
+	}
+
+	ui_print("Generating md5 sum...\n");
+	sprintf(tmp, "nandroid-md5.sh %s", backup_path);
+	if (0 != (ret = __system(tmp))) {
+		ui_print("Error while generating md5 sum!\n");
+		return ret;
+	}
+
+	sync();
+	ui_set_background(BACKGROUND_ICON_NONE);
+	ui_reset_progress();
+	ui_print("\nBackup complete!\n");
+	return 0;
+}
+
+int nandroid_backup(const char* backup_path) {
+    return nandroid_backup_extended(backup_path, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1);
 }
 
 typedef int (*format_function)(char* root);
